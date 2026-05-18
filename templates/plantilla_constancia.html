@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Constancia de Participación</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: 'Times New Roman', serif;
+            background: white;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .constancia {
+            border: 15px solid #8B0000;
+            padding: 40px;
+            position: relative;
+            min-height: 25cm;
+        }
+        
+        .sello {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .titulo {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: #8B0000;
+            margin: 20px 0 30px 0;
+            letter-spacing: 2px;
+        }
+        
+        .subtitulo {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #8B0000;
+            padding-bottom: 10px;
+        }
+        
+        .otorga {
+            text-align: center;
+            font-size: 16px;
+            margin: 40px 0 20px 0;
+        }
+        
+        .nombre {
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: #8B0000;
+            margin: 30px 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            border-bottom: 2px dashed #ccc;
+            padding-bottom: 15px;
+        }
+        
+        .mensaje {
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.8;
+            margin: 30px 0;
+        }
+        
+        .conferencia {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #f5f5f5;
+            padding: 15px;
+            margin: 20px 0;
+            border-left: 5px solid #8B0000;
+        }
+        
+        .detalles {
+            text-align: center;
+            font-size: 14px;
+            margin: 20px 0;
+            color: #555;
+        }
+        
+        .firma {
+            margin-top: 60px;
+            text-align: center;
+        }
+        
+        .firma-linea {
+            width: 250px;
+            border-top: 1px solid black;
+            margin: 10px auto;
+        }
+        
+        .firma-texto {
+            font-size: 12px;
+        }
+        
+        .footer {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="constancia">
+        <div class="sello">
+            <div style="font-size: 60px;">🎓</div>
+        </div>
+        
+        <div class="titulo">
+            CONSTANCIA DE PARTICIPACIÓN
+        </div>
+        
+        <div class="subtitulo">
+            El comité organizador certifica que
+        </div>
+        
+        <div class="nombre">
+            {{ nombre }}
+        </div>
+        
+        <div class="otorga">
+            ha participado en la conferencia:
+        </div>
+        
+        <div class="conferencia">
+            {{ titulo }}
+        </div>
+        
+        <div class="detalles">
+            Celebrada el día {{ fecha }}<br>
+            Con una duración de {{ duracion }}
+        </div>
+        
+        <div class="mensaje">
+            Demostrando compromiso con la actualización profesional<br>
+            y el desarrollo académico.
+        </div>
+        
+        <div class="firma">
+            <div class="firma-linea"></div>
+            <div class="firma-texto">
+                Mtra. María González<br>
+                Coordinadora Académica
+            </div>
+        </div>
+        
+        <div class="footer">
+            Documento generado digitalmente - {{ fecha_generacion }}
+        </div>
+    </div>
+</body>
+</html>

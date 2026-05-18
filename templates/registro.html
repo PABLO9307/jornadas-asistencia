@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - {{ conferencia.titulo }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="text-center">{{ conferencia.fecha_mostrar }} - {{ conferencia.hora }}</h4>
+                        <p class="text-center mb-0"><strong>{{ conferencia.titulo }}</strong></p>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <div class="alert alert-info">
+                            <strong>📌 Importante:</strong> La salida será habilitada por el organizador. No podrás registrar salida hasta que te avisen.
+                        </div>
+                        <div class="alert alert-warning">
+                            <strong>✍️ NOTA IMPORTANTE:</strong> El nombre que escribas será el que aparezca en tu constancia.<br>
+                            Por favor, escribe tu <strong>nombre completo</strong> tal como deseas que aparezca.
+                        </div>
+
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="nombre" class="form-label">Nombre completo <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="nombre" name="nombre" required
+                                       placeholder="Ej: María Fernanda López García">
+                                <div class="form-text">Este nombre se imprimirá en tu constancia.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Correo electrónico <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="email" name="email" required
+                                       placeholder="ejemplo@correo.com">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" name="tipo" value="entrada" class="btn btn-success btn-lg">✅ Registrar ENTRADA</button>
+                                <button type="submit" name="tipo" value="salida" class="btn btn-danger btn-lg">❌ Registrar SALIDA</button>
+                            </div>
+                        </form>
+                        <hr>
+                        <div class="text-center">
+                            <a href="{{ url_for('constancia_qr') }}" class="btn btn-outline-success btn-sm">📄 Descargar mi constancia</a>
+                        </div>
+                        <p class="text-muted text-center small mt-3">Para salir, cierra la pestaña del navegador.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
