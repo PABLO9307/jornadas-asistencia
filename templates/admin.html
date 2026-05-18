@@ -11,7 +11,7 @@
         <div class="card shadow">
             <div class="card-header bg-danger text-white">
                 <h2 class="text-center">👑 Panel de Administrador</h2>
-                <p class="text-center mb-0">Control de activación/desactivación de ENTRADA y SALIDA</p>
+                <p class="text-center mb-0">Control de activación/desactivación de SALIDA</p>
             </div>
             <div class="card-body">
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -22,48 +22,22 @@
                     {% endif %}
                 {% endwith %}
 
-                <!-- CONTROL DE ENTRADA (MASIVO) -->
+                <!-- CONTROL MASIVO POR CONFERENCIA -->
                 <div class="mb-4">
-                    <h4 class="text-primary">📢 CONTROL DE ENTRADA (por conferencia):</h4>
-                    <div class="row mt-3">
-                        {% for conf in conferencias %}
-                        <div class="col-md-6 mb-2">
-                            <div class="btn-group w-100">
-                                <a href="{{ url_for('activar_entrada_todos', conferencia_id=conf.id) }}" 
-                                   class="btn btn-success w-50"
-                                   onclick="return confirm('¿ACTIVAR entrada para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
-                                    ✅ ACTIVAR entrada (todos)
-                                </a>
-                                <a href="{{ url_for('desactivar_entrada_todos', conferencia_id=conf.id) }}" 
-                                   class="btn btn-secondary w-50"
-                                   onclick="return confirm('¿DESACTIVAR entrada para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
-                                    🔒 DESACTIVAR entrada (todos)
-                                </a>
-                            </div>
-                            <div class="text-center small mt-1">{{ conf.fecha_mostrar }} - {{ conf.hora }}</div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <hr>
-
-                <!-- CONTROL DE SALIDA (MASIVO) -->
-                <div class="mb-4">
-                    <h4 class="text-warning">🚪 CONTROL DE SALIDA (por conferencia):</h4>
+                    <h4 class="text-warning">🚪 ACTIVAR/DESACTIVAR SALIDA (por conferencia):</h4>
                     <div class="row mt-3">
                         {% for conf in conferencias %}
                         <div class="col-md-6 mb-2">
                             <div class="btn-group w-100">
                                 <a href="{{ url_for('activar_todos', conferencia_id=conf.id) }}" 
                                    class="btn btn-success w-50"
-                                   onclick="return confirm('¿ACTIVAR salida para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
-                                    ✅ ACTIVAR salida (todos)
+                                   onclick="return confirm('¿Activar salida para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
+                                    ✅ Activar todos
                                 </a>
                                 <a href="{{ url_for('desactivar_todos', conferencia_id=conf.id) }}" 
                                    class="btn btn-danger w-50"
-                                   onclick="return confirm('¿DESACTIVAR salida para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
-                                    🔒 DESACTIVAR salida (todos)
+                                   onclick="return confirm('¿Desactivar salida para TODOS los asistentes de {{ conf.titulo[:40] }}?')">
+                                    🔒 Desactivar todos
                                 </a>
                             </div>
                             <div class="text-center small mt-1">{{ conf.fecha_mostrar }} - {{ conf.hora }}</div>
@@ -74,7 +48,7 @@
 
                 <hr>
 
-                <!-- CONTROL INDIVIDUAL DE SALIDA -->
+                <!-- CONTROL INDIVIDUAL -->
                 <h4>👥 Personas con entrada registrada (pendientes de salida):</h4>
                 {% if registros %}
                 <div class="table-responsive mt-3">
@@ -84,7 +58,7 @@
                                 <th>Nombre</th>
                                 <th>Email</th>
                                 <th>Conferencia</th>
-                                <th>Hora de entrada</th>
+                                <th>Hora entrada</th>
                                 <th>Salida activada</th>
                                 <th>Acciones</th>
                             </tr>
@@ -94,32 +68,24 @@
                             <tr>
                                 <td>{{ reg.nombre }}</td>
                                 <td>{{ reg.email }}</td>
-                                <td>{{ reg.titulo[:50] + '...' if reg.titulo|length > 50 else reg.titulo }}</td>
+                                <td>{{ reg.titulo[:50] }}{% if reg.titulo|length > 50 %}...{% endif %}</td>
                                 <td>{{ reg.entrada }}</td>
                                 <td>
                                     {% if reg.salida_activada %}
-                                        <span class="badge bg-success">✅ ACTIVADA</span>
+                                        <span class="badge bg-success">✅ Activada</span>
                                     {% else %}
-                                        <span class="badge bg-danger">⛔ BLOQUEADA</span>
+                                        <span class="badge bg-danger">⛔ Bloqueada</span>
                                     {% endif %}
-                                 </td>
+                                </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
                                         {% if not reg.salida_activada %}
-                                            <a href="{{ url_for('activar_salida', indice=loop.index0) }}" 
-                                               class="btn btn-success"
-                                               onclick="return confirm('¿Activar salida para {{ reg.nombre }}?')">
-                                                ✅ Activar
-                                            </a>
+                                            <a href="{{ url_for('activar_salida', id=reg.id) }}" class="btn btn-success">Activar</a>
                                         {% else %}
-                                            <a href="{{ url_for('desactivar_salida', indice=loop.index0) }}" 
-                                               class="btn btn-warning"
-                                               onclick="return confirm('¿DESACTIVAR salida para {{ reg.nombre }}?')">
-                                                🔒 Desactivar
-                                            </a>
+                                            <a href="{{ url_for('desactivar_salida', id=reg.id) }}" class="btn btn-warning">Desactivar</a>
                                         {% endif %}
                                     </div>
-                                 </td>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -128,7 +94,7 @@
                 {% else %}
                 <div class="alert alert-info mt-3">No hay personas con entrada registrada que esperen salida.</div>
                 {% endif %}
-                
+
                 <hr>
                 <div class="text-center">
                     <a href="{{ url_for('index') }}" class="btn btn-secondary">⬅ Volver al inicio</a>
