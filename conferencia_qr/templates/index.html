@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conferencias - Registro por QR</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="text-center mb-4">📅 Conferencias 2025</h1>
+        
+        <!-- Enlace al panel de administrador -->
+        <div class="text-end mb-3">
+            <a href="{{ url_for('admin') }}" class="btn btn-danger">👑 Panel de Administrador</a>
+        </div>
+        
+        <!-- QR de las conferencias -->
+        <div class="row">
+            {% for conf in qr_codes %}
+            <div class="col-md-4 mb-4">
+                <div class="card text-center h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h4>{{ conf.fecha_mostrar }} - {{ conf.hora }}</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text"><strong>{{ conf.titulo }}</strong></p>
+                        <img src="data:image/png;base64,{{ conf.img }}" class="img-fluid mb-3" style="max-width: 200px;" alt="QR">
+                        <p class="small text-muted">Escanea este QR para registrar tu entrada o salida</p>
+                        <a href="{{ conf.url }}" class="btn btn-sm btn-outline-secondary" target="_blank">Abrir enlace</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Botones de administración / consulta -->
+        <div class="text-center mt-4">
+            <a href="{{ url_for('ver_registros') }}" class="btn btn-info">📋 Ver todos los registros</a>
+            <a href="{{ url_for('constancia') }}" class="btn btn-success">📄 Generar constancia</a>
+        </div>
+        
+       
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

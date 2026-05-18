@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registros</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <h2 class="text-center">📋 Registros de asistencia</h2>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Fecha</th>
+                        <th>Conferencia</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in registros %}
+                    <tr>
+                        <td>{{ reg.nombre }}</td>
+                        <td>{{ reg.email }}</td>
+                        <td>{{ reg.fecha }}</td>
+                        <td>{{ reg.titulo[:50] + '...' if reg.titulo|length > 50 else reg.titulo }}</td>
+                        <td>{{ reg.entrada if reg.entrada|length else '—' }}</td>
+                        <td>{{ reg.salida if reg.salida|length else '—' }}</td>
+                        <td>
+                            {% if reg.entrada|length and reg.salida|length %}
+                                <span class="badge bg-success">Completo ✅</span>
+                            {% elif reg.entrada|length %}
+                                <span class="badge bg-warning">Solo entrada ⏳</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Sin registro</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="text-center">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">⬅ Inicio</a>
+        </div>
+    </div>
+</body>
+</html>
