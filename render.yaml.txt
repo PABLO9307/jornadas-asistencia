@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: jornadas-asistencia
+    runtime: python3
+    repo: https://github.com/PABLO9307/jornadas-asistencia
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
