@@ -401,6 +401,20 @@ def exportar_registros():
         import traceback
         return f"<h1>Error en exportación</h1><pre>{traceback.format_exc()}</pre>", 500
 
+# =====================================================
+# RESET: BORRAR TODOS LOS REGISTROS (SOLO ADMIN)
+# =====================================================
+@app.route('/admin/reset')
+@requires_auth
+def reset_registros():
+    try:
+        num = Asistente.query.delete()
+        db.session.commit()
+        flash(f'✅ Se han eliminado {num} registros. La base de datos está limpia.', 'success')
+    except Exception as e:
+        flash(f'❌ Error al borrar: {str(e)}', 'danger')
+    return redirect(url_for('admin'))
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
