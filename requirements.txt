@@ -5,3 +5,6 @@ fpdf2
 flask
 flask-sqlalchemy
 qrcode
+pillow
+reportlab
+gunicorn
