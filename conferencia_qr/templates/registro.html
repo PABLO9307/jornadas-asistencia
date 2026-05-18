@@ -28,10 +28,8 @@
                         {% endwith %}
 
                         <div class="alert alert-info">
-                            <strong>📌 Importante:</strong> La salida y entrada serán habilitadas por el organizador. 
-                            No podrás registrar entrada o salida hasta que te avisen.
+                            <strong>📌 Importante:</strong> La salida será habilitada por el organizador. No podrás registrar salida hasta que te avisen.
                         </div>
-
                         <div class="alert alert-warning">
                             <strong>✍️ NOTA IMPORTANTE:</strong> El nombre que escribas será el que aparezca en tu constancia.<br>
                             Por favor, escribe tu <strong>nombre completo</strong> tal como deseas que aparezca.
@@ -54,16 +52,10 @@
                                 <button type="submit" name="tipo" value="salida" class="btn btn-danger btn-lg">❌ Registrar SALIDA</button>
                             </div>
                         </form>
-
                         <hr>
-
-                        <!-- NUEVO: Enlace para descargar constancia (sin volver a inicio) -->
                         <div class="text-center">
-                            <a href="{{ url_for('constancia_qr') }}" class="btn btn-outline-success btn-sm">
-                                📄 Descargar mi constancia
-                            </a>
+                            <a href="{{ url_for('constancia_qr') }}" class="btn btn-outline-success btn-sm">📄 Descargar mi constancia</a>
                         </div>
-
                         <p class="text-muted text-center small mt-3">Para salir, cierra la pestaña del navegador.</p>
                     </div>
                 </div>
