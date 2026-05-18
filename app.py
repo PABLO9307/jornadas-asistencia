@@ -366,6 +366,10 @@ def descargar_constancia_qr():
 @app.route('/exportar/registros')
 @requires_auth
 def exportar_registros():
+    import csv
+    from io import BytesIO, StringIO
+    from datetime import datetime
+    
     # Obtener todos los registros de la base de datos
     todos = Asistente.query.all()
     
@@ -374,9 +378,9 @@ def exportar_registros():
     # Usar utf-8 con BOM para que Excel lo abra correctamente
     output.write('\ufeff'.encode('utf-8'))
     
-    # Crear el writer de CSV
-    import csv
-    writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    # Crear el writer de CSV (trabajamos con texto, luego convertimos a bytes)
+    text_output = StringIO()
+    writer = csv.writer(text_output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
     
     # Escribir cabeceras
     writer.writerow(['ID', 'Nombre', 'Email', 'Conferencia ID', 'Fecha', 'Título', 'Hora Inicio', 'Entrada', 'Salida', 'Salida Activada'])
@@ -396,14 +400,16 @@ def exportar_registros():
             'Sí' if a.salida_activada else 'No'
         ])
     
+    # Agregar el contenido CSV al buffer de bytes
+    output.write(text_output.getvalue().encode('utf-8-sig'))
     output.seek(0)
+    
     return send_file(
         output,
         as_attachment=True,
         download_name=f'registros_asistencia_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
         mimetype='text/csv'
     )
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
