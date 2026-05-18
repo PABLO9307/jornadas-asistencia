@@ -11,6 +11,9 @@ from fpdf import FPDF
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
 
+# Forzar esquema HTTPS para las URLs generadas
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 EXCEL_FILE = 'asistentes.xlsx'
 
 # =====================================================
@@ -201,8 +204,12 @@ def generar_constancia_simple(fila):
 
 @app.route('/')
 def index():
-    # Obtener la URL base automáticamente (funciona en local y en la nube)
-    base_url = request.host_url.rstrip('/')
+    # Usar la URL pública de Render (variable de entorno) o la de la petición
+    base_url = os.environ.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
+    # Forzar HTTPS para evitar problemas de contenido mixto
+    if base_url.startswith('http://'):
+        base_url = base_url.replace('http://', 'https://')
+    
     qr_codes = []
     for conf in CONFERENCIAS:
         url = f'{base_url}/registro/{conf["id"]}'
@@ -236,7 +243,6 @@ def registro_dia(conferencia_id):
         indice, fila = obtener_fila_asistente(df, email, conferencia_id)
 
         if tipo == 'entrada':
-            # Si es un nuevo registro (indice None) o ya existe, verificar activación
             if indice is not None and not df.at[indice, 'entrada_activada']:
                 flash('🔒 La entrada aún no está habilitada. Espera a que el organizador la active.', 'warning')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
@@ -282,7 +288,9 @@ def registro_dia(conferencia_id):
 
     return render_template('registro.html', conferencia=conferencia)
 
-# Rutas protegidas con autenticación
+# =====================================================
+# Rutas protegidas con autenticación (admin)
+# =====================================================
 @app.route('/admin')
 @requires_auth
 def admin():
@@ -291,7 +299,6 @@ def admin():
     registros = pendientes.to_dict('records')
     return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
 
-# Rutas para SALIDA
 @app.route('/admin/activar/<int:indice>')
 @requires_auth
 def activar_salida(indice):
@@ -332,7 +339,6 @@ def desactivar_todos(conferencia_id):
     flash('🔒 Salida DESACTIVADA para TODOS los asistentes', 'warning')
     return redirect(url_for('admin'))
 
-# Rutas para ENTRADA
 @app.route('/admin/activar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def activar_entrada_todos(conferencia_id):
@@ -375,7 +381,6 @@ def constancia():
             return redirect(url_for('constancia'))
         pdf_file = generar_constancia_con_fondo(fila)
         nombre_limpio = fila['nombre'].replace(' ', '_').replace('/', '_')
-        
         response = make_response(send_file(pdf_file, as_attachment=True,
                          download_name=f"constancia_{nombre_limpio}.pdf",
                          mimetype='application/pdf'))
@@ -384,7 +389,6 @@ def constancia():
         return response
     return render_template('constancia.html', conferencias=CONFERENCIAS)
 
-# Rutas para que el asistente descargue su constancia
 @app.route('/constancia-qr', methods=['GET'])
 def constancia_qr():
     return render_template('constancia_qr.html', conferencias=CONFERENCIAS)
@@ -393,23 +397,18 @@ def constancia_qr():
 def descargar_constancia_qr():
     email = request.form.get('email')
     conferencia_id = int(request.form.get('conferencia_id'))
-    
     df = leer_excel()
     _, fila = obtener_fila_asistente(df, email, conferencia_id)
-    
     if fila is None:
         flash('No se encontró ningún registro con ese correo para esa conferencia.', 'error')
         return redirect(url_for('constancia_qr'))
-    
     if fila['entrada'] == '' or fila['salida'] == '':
         flash('❌ Aún no puedes generar la constancia. Debes tener entrada y salida registradas.', 'error')
         return redirect(url_for('constancia_qr'))
-    
     try:
         pdf_file = generar_constancia_con_fondo(fila)
     except:
         pdf_file = generar_constancia_simple(fila)
-    
     nombre_limpio = fila['nombre'].replace(' ', '_').replace('/', '_')
     return send_file(pdf_file, as_attachment=True,
                      download_name=f"constancia_{nombre_limpio}.pdf",
