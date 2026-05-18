@@ -1,6 +1,7 @@
 import os
+import socket
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, make_response
 from functools import wraps
 import qrcode
@@ -11,10 +12,37 @@ from fpdf import FPDF
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
 
-# Forzar esquema HTTPS para las URLs generadas
+# Forzar HTTPS en entornos de producción como Render
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 EXCEL_FILE = 'asistentes.xlsx'
+
+# =====================================================
+# Detección de entorno: local o nube (Render)
+# =====================================================
+def get_local_ip():
+    """Obtiene la IP local de la red (para pruebas locales)"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+def get_base_url():
+    """Devuelve la URL base correcta según el entorno"""
+    # Si estamos en Render, usar la variable de entorno con la URL pública
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if render_url:
+        base = render_url.rstrip('/')
+        if base.startswith('http://'):
+            base = base.replace('http://', 'https://')
+        return base
+    # Entorno local: usar IP local
+    local_ip = get_local_ip()
+    return f'http://{local_ip}:5000'
 
 # =====================================================
 # Autenticación básica para rutas de administrador
@@ -82,7 +110,9 @@ CONFERENCIAS = [
     }
 ]
 
-# Inicializar archivo Excel
+# =====================================================
+# Manejo del archivo Excel (persistencia)
+# =====================================================
 def init_excel():
     if not os.path.exists(EXCEL_FILE):
         df = pd.DataFrame(columns=['nombre', 'email', 'conferencia_id', 'fecha', 'titulo', 'hora_inicio', 'entrada', 'salida', 'salida_activada', 'entrada_activada'])
@@ -106,6 +136,8 @@ def leer_excel():
         df['entrada_activada'] = True
     else:
         df['entrada_activada'] = df['entrada_activada'].fillna(True)
+    # Guardar automáticamente si se añadieron columnas
+    guardar_excel(df)
     return df
 
 def guardar_excel(df):
@@ -119,11 +151,9 @@ def obtener_fila_asistente(df, email, conferencia_id):
     return None, None
 
 # =====================================================
-# GENERACIÓN DE CONSTANCIAS CON FONDO (SIN HORAS)
+# GENERACIÓN DE CONSTANCIAS
 # =====================================================
-
 def generar_constancia_con_fondo(fila):
-    """Constancia con fondo personalizado - SIN horas"""
     try:
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
@@ -131,19 +161,14 @@ def generar_constancia_con_fondo(fila):
         from PyPDF2 import PdfReader, PdfWriter
     except ImportError:
         return generar_constancia_simple(fila)
-    
     fondo_path = "fondo_constancia.pdf"
     if not os.path.exists(fondo_path):
-        print("No se encontró fondo_constancia.pdf, usando versión simple")
         return generar_constancia_simple(fila)
-    
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    
     can.setFont("Helvetica-Bold", 28)
     can.setFillColor(HexColor('#8B0000'))
     can.drawCentredString(306, 380, fila['nombre'])
-    
     can.setFont("Helvetica-Bold", 12)
     can.setFillColor(HexColor('#000000'))
     titulo = fila['titulo']
@@ -152,12 +177,10 @@ def generar_constancia_con_fondo(fila):
         can.drawCentredString(306, 272, titulo[65:])
     else:
         can.drawCentredString(306, 290, titulo)
-    
     can.setFont("Helvetica", 11)
     can.setFillColor(HexColor('#333333'))
     can.drawCentredString(306, 240, f"Fecha: {fila['fecha']}")
     can.save()
-    
     reader = PdfReader(fondo_path)
     writer = PdfWriter()
     packet.seek(0)
@@ -165,14 +188,12 @@ def generar_constancia_con_fondo(fila):
     page = reader.pages[0]
     page.merge_page(overlay.pages[0])
     writer.add_page(page)
-    
     output = BytesIO()
     writer.write(output)
     output.seek(0)
     return output
 
 def generar_constancia_simple(fila):
-    """Constancia simple SIN horas (respaldo)"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 20)
@@ -190,7 +211,6 @@ def generar_constancia_simple(fila):
     pdf.cell(0, 10, f"Fecha: {fila['fecha']}", ln=True, align='C')
     pdf.ln(15)
     pdf.cell(0, 10, "Firma", ln=True, align='R')
-    
     temp_pdf = "temp_constancia.pdf"
     pdf.output(temp_pdf)
     with open(temp_pdf, 'rb') as f:
@@ -201,15 +221,9 @@ def generar_constancia_simple(fila):
 # =====================================================
 # RUTAS DE LA APLICACIÓN
 # =====================================================
-
 @app.route('/')
 def index():
-    # Usar la URL pública de Render (variable de entorno) o la de la petición
-    base_url = os.environ.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
-    # Forzar HTTPS para evitar problemas de contenido mixto
-    if base_url.startswith('http://'):
-        base_url = base_url.replace('http://', 'https://')
-    
+    base_url = get_base_url()
     qr_codes = []
     for conf in CONFERENCIAS:
         url = f'{base_url}/registro/{conf["id"]}'
@@ -243,6 +257,7 @@ def registro_dia(conferencia_id):
         indice, fila = obtener_fila_asistente(df, email, conferencia_id)
 
         if tipo == 'entrada':
+            # Verificar si la entrada está activada (solo si ya existe la fila)
             if indice is not None and not df.at[indice, 'entrada_activada']:
                 flash('🔒 La entrada aún no está habilitada. Espera a que el organizador la active.', 'warning')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
@@ -289,7 +304,7 @@ def registro_dia(conferencia_id):
     return render_template('registro.html', conferencia=conferencia)
 
 # =====================================================
-# Rutas protegidas con autenticación (admin)
+# RUTAS DEL ADMINISTRADOR (protegidas)
 # =====================================================
 @app.route('/admin')
 @requires_auth
@@ -299,6 +314,7 @@ def admin():
     registros = pendientes.to_dict('records')
     return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
 
+# Control de SALIDA (individual)
 @app.route('/admin/activar/<int:indice>')
 @requires_auth
 def activar_salida(indice):
@@ -319,6 +335,7 @@ def desactivar_salida(indice):
         flash(f'🔒 Salida DESACTIVADA para {df.at[indice, "nombre"]}', 'warning')
     return redirect(url_for('admin'))
 
+# Control de SALIDA (masivo por conferencia)
 @app.route('/admin/activar_todos/<int:conferencia_id>')
 @requires_auth
 def activar_todos(conferencia_id):
@@ -326,7 +343,7 @@ def activar_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] != '') & (df['salida'] == '')
     df.loc[mascara, 'salida_activada'] = True
     guardar_excel(df)
-    flash('✅ Salida ACTIVADA para TODOS los asistentes', 'success')
+    flash('✅ Salida ACTIVADA para TODOS los asistentes con entrada registrada', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/desactivar_todos/<int:conferencia_id>')
@@ -336,9 +353,10 @@ def desactivar_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] != '') & (df['salida'] == '')
     df.loc[mascara, 'salida_activada'] = False
     guardar_excel(df)
-    flash('🔒 Salida DESACTIVADA para TODOS los asistentes', 'warning')
+    flash('🔒 Salida DESACTIVADA para TODOS los asistentes con entrada registrada', 'warning')
     return redirect(url_for('admin'))
 
+# Control de ENTRADA (masivo por conferencia)
 @app.route('/admin/activar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def activar_entrada_todos(conferencia_id):
@@ -346,7 +364,7 @@ def activar_entrada_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = True
     guardar_excel(df)
-    flash('✅ ENTRADA ACTIVADA para TODOS los asistentes', 'success')
+    flash('✅ ENTRADA ACTIVADA para todos los asistentes (nuevos) de esta conferencia', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/desactivar_entrada_todos/<int:conferencia_id>')
@@ -356,7 +374,7 @@ def desactivar_entrada_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = False
     guardar_excel(df)
-    flash('🔒 ENTRADA DESACTIVADA para TODOS los asistentes', 'warning')
+    flash('🔒 ENTRADA DESACTIVADA para todos los asistentes (nuevos) de esta conferencia', 'warning')
     return redirect(url_for('admin'))
 
 @app.route('/ver_registros')
@@ -389,6 +407,7 @@ def constancia():
         return response
     return render_template('constancia.html', conferencias=CONFERENCIAS)
 
+# Rutas para que el asistente descargue su constancia (página simple)
 @app.route('/constancia-qr', methods=['GET'])
 def constancia_qr():
     return render_template('constancia_qr.html', conferencias=CONFERENCIAS)
@@ -416,4 +435,6 @@ def descargar_constancia_qr():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    # Si estamos en Render, usar debug=False; en local, debug=True
+    debug_mode = os.environ.get('RENDER_EXTERNAL_URL') is None
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
