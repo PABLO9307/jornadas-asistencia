@@ -14,9 +14,7 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 EXCEL_FILE = 'asistentes.xlsx'
 
-# =====================================================
-# Autenticación básica para rutas de administrador
-# =====================================================
+# Autenticación
 def check_auth(username, password):
     return username == 'admin' and password == 'admin123'
 
@@ -32,57 +30,17 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-# =====================================================
 # CONFERENCIAS
-# =====================================================
 CONFERENCIAS = [
-    {
-        'id': 1,
-        'fecha': '2026-05-18',
-        'fecha_mostrar': '18 de mayo',
-        'hora': '12:00',
-        'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'
-    },
-    {
-        'id': 2,
-        'fecha': '2026-05-19',
-        'fecha_mostrar': '19 de mayo',
-        'hora': '15:00',
-        'titulo': 'Industria 4.0 y 5.0'
-    },
-    {
-        'id': 3,
-        'fecha': '2026-05-19',
-        'fecha_mostrar': '19 de mayo',
-        'hora': '16:00',
-        'titulo': 'Síntesis de nanopartículas de Óxidos metálicos nanoestructurados y su aplicación fotocatalítica en el tratamiento de agua'
-    },
-    {
-        'id': 4,
-        'fecha': '2026-05-20',
-        'fecha_mostrar': '20 de mayo',
-        'hora': '15:00',
-        'titulo': 'Síntesis verde: una ruta sostenible para la obtención de nanomateriales'
-    },
-    {
-        'id': 5,
-        'fecha': '2026-05-20',
-        'fecha_mostrar': '20 de mayo',
-        'hora': '16:00',
-        'titulo': 'La cadena de valor de los semiconductores en el IPN ¿Cuál es la oportunidad real?'
-    },
-    {
-        'id': 6,
-        'fecha': '2026-05-21',
-        'fecha_mostrar': '21 de mayo',
-        'hora': '11:00',
-        'titulo': 'Polímeros controlados e Hidrogeles'
-    }
+    {'id': 1, 'fecha': '2026-05-18', 'fecha_mostrar': '18 de mayo', 'hora': '12:00', 'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'},
+    {'id': 2, 'fecha': '2026-05-19', 'fecha_mostrar': '19 de mayo', 'hora': '15:00', 'titulo': 'Industria 4.0 y 5.0'},
+    {'id': 3, 'fecha': '2026-05-19', 'fecha_mostrar': '19 de mayo', 'hora': '16:00', 'titulo': 'Síntesis de nanopartículas de Óxidos metálicos nanoestructurados y su aplicación fotocatalítica en el tratamiento de agua'},
+    {'id': 4, 'fecha': '2026-05-20', 'fecha_mostrar': '20 de mayo', 'hora': '15:00', 'titulo': 'Síntesis verde: una ruta sostenible para la obtención de nanomateriales'},
+    {'id': 5, 'fecha': '2026-05-20', 'fecha_mostrar': '20 de mayo', 'hora': '16:00', 'titulo': 'La cadena de valor de los semiconductores en el IPN ¿Cuál es la oportunidad real?'},
+    {'id': 6, 'fecha': '2026-05-21', 'fecha_mostrar': '21 de mayo', 'hora': '11:00', 'titulo': 'Polímeros controlados e Hidrogeles'}
 ]
 
-# =====================================================
-# Inicializar y manejar Excel con las columnas necesarias
-# =====================================================
+# Excel
 def init_excel():
     if not os.path.exists(EXCEL_FILE):
         df = pd.DataFrame(columns=['nombre', 'email', 'conferencia_id', 'fecha', 'titulo', 'hora_inicio', 'entrada', 'salida', 'salida_activada', 'entrada_activada'])
@@ -106,7 +64,6 @@ def leer_excel():
         df['entrada_activada'] = True
     else:
         df['entrada_activada'] = df['entrada_activada'].fillna(True)
-    # Guardamos por si se añadieron columnas
     guardar_excel(df)
     return df
 
@@ -120,9 +77,7 @@ def obtener_fila_asistente(df, email, conferencia_id):
         return indices[0], df.loc[indices[0]]
     return None, None
 
-# =====================================================
-# GENERACIÓN DE CONSTANCIAS
-# =====================================================
+# Constancias
 def generar_constancia_con_fondo(fila):
     try:
         from reportlab.pdfgen import canvas
@@ -188,9 +143,7 @@ def generar_constancia_simple(fila):
     os.remove(temp_pdf)
     return BytesIO(pdf_data)
 
-# =====================================================
-# RUTAS DE LA APLICACIÓN
-# =====================================================
+# Rutas principales
 @app.route('/')
 def index():
     base_url = os.environ.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
@@ -218,22 +171,17 @@ def registro_dia(conferencia_id):
     conferencia = next((c for c in CONFERENCIAS if c['id'] == conferencia_id), None)
     if conferencia is None:
         return "Conferencia no encontrada", 404
-
     if request.method == 'POST':
         nombre = request.form.get('nombre')
         email = request.form.get('email')
         tipo = request.form.get('tipo')
         ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
         df = leer_excel()
         indice, fila = obtener_fila_asistente(df, email, conferencia_id)
-
         if tipo == 'entrada':
-            # Verificar si la entrada está activada (solo si ya existe el registro)
             if indice is not None and not df.at[indice, 'entrada_activada']:
                 flash('🔒 La entrada aún no está habilitada. Espera a que el organizador la active.', 'warning')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
-            
             if fila is not None and fila['entrada'] != '':
                 flash('❌ Ya registraste entrada para esta conferencia.', 'danger')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
@@ -256,7 +204,6 @@ def registro_dia(conferencia_id):
                 df.at[indice, 'hora_inicio'] = ahora
             guardar_excel(df)
             flash(f'✅ ENTRADA registrada para {nombre}', 'success')
-
         elif tipo == 'salida':
             if fila is None or fila['entrada'] == '':
                 flash('❌ No puedes registrar salida sin haber registrado entrada primero.', 'danger')
@@ -270,14 +217,10 @@ def registro_dia(conferencia_id):
             df.at[indice, 'salida'] = ahora
             guardar_excel(df)
             flash(f'✅ SALIDA registrada para {nombre}', 'success')
-
         return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
-
     return render_template('registro.html', conferencia=conferencia)
 
-# =====================================================
-# RUTAS DE ADMINISTRADOR (protegidas)
-# =====================================================
+# Admin
 @app.route('/admin')
 @requires_auth
 def admin():
@@ -286,7 +229,6 @@ def admin():
     registros = pendientes.to_dict('records')
     return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
 
-# Control de SALIDA (individual y masivo)
 @app.route('/admin/activar/<int:indice>')
 @requires_auth
 def activar_salida(indice):
@@ -327,7 +269,7 @@ def desactivar_todos(conferencia_id):
     flash('🔒 Salida DESACTIVADA para TODOS los asistentes (con entrada registrada)', 'warning')
     return redirect(url_for('admin'))
 
-# Control de ENTRADA (masivo)
+# RUTAS PARA CONTROL DE ENTRADA (agregadas)
 @app.route('/admin/activar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def activar_entrada_todos(conferencia_id):
