@@ -1,7 +1,6 @@
 import os
-import socket
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, make_response
 from functools import wraps
 import qrcode
@@ -13,19 +12,6 @@ app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
 
 EXCEL_FILE = 'asistentes.xlsx'
-
-# =====================================================
-# Obtener IP local de red
-# =====================================================
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return '127.0.0.1'
 
 # =====================================================
 # Autenticación básica para rutas de administrador
@@ -100,7 +86,7 @@ def init_excel():
         df['entrada'] = df['entrada'].astype(object)
         df['salida'] = df['salida'].astype(object)
         df['salida_activada'] = False
-        df['entrada_activada'] = True  # Por defecto activada
+        df['entrada_activada'] = True
         df.to_excel(EXCEL_FILE, index=False)
 
 init_excel()
@@ -215,8 +201,8 @@ def generar_constancia_simple(fila):
 
 @app.route('/')
 def index():
-    local_ip = get_local_ip()
-    base_url = f'http://{local_ip}:5000'
+    # Obtener la URL base automáticamente (funciona en local y en la nube)
+    base_url = request.host_url.rstrip('/')
     qr_codes = []
     for conf in CONFERENCIAS:
         url = f'{base_url}/registro/{conf["id"]}'
@@ -232,7 +218,7 @@ def index():
             'img': img_str,
             'url': url
         })
-    return render_template('index.html', qr_codes=qr_codes, local_ip=local_ip)
+    return render_template('index.html', qr_codes=qr_codes)
 
 @app.route('/registro/<int:conferencia_id>', methods=['GET', 'POST'])
 def registro_dia(conferencia_id):
@@ -250,8 +236,8 @@ def registro_dia(conferencia_id):
         indice, fila = obtener_fila_asistente(df, email, conferencia_id)
 
         if tipo == 'entrada':
-            # Verificar si la entrada está activada por el admin
-            if not df.at[indice, 'entrada_activada'] if indice is not None else True:
+            # Si es un nuevo registro (indice None) o ya existe, verificar activación
+            if indice is not None and not df.at[indice, 'entrada_activada']:
                 flash('🔒 La entrada aún no está habilitada. Espera a que el organizador la active.', 'warning')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
             
@@ -350,7 +336,6 @@ def desactivar_todos(conferencia_id):
 @app.route('/admin/activar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def activar_entrada_todos(conferencia_id):
-    """Activar entrada para TODOS los asistentes de una conferencia"""
     df = leer_excel()
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = True
@@ -361,7 +346,6 @@ def activar_entrada_todos(conferencia_id):
 @app.route('/admin/desactivar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def desactivar_entrada_todos(conferencia_id):
-    """Desactivar entrada para TODOS los asistentes de una conferencia"""
     df = leer_excel()
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = False
@@ -432,4 +416,5 @@ def descargar_constancia_qr():
                      mimetype='application/pdf')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
