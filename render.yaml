@@ -4,7 +4,7 @@ services:
     runtime: python3
     repo: https://github.com/PABLO9307/jornadas-asistencia
     plan: free
-    rootDir: conferencia_qr
+    rootDir: jornadas-asistencia
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
