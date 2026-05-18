@@ -1,5 +1,4 @@
 import os
-import socket
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, make_response
 from functools import wraps
@@ -8,20 +7,20 @@ from io import BytesIO
 import base64
 from fpdf import FPDF
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
 
-# Configuración de base de datos
-# Usa la variable DATABASE_URL que Render inyecta automáticamente
-# Si no existe (local), usa SQLite para pruebas
+# =====================================================
+# CONFIGURACIÓN DE BASE DE DATOS
+# =====================================================
+# Render inyecta la variable DATABASE_URL automáticamente si vinculaste la BD
 database_url = os.environ.get('DATABASE_URL')
 if not database_url:
-    # Para pruebas locales, usa SQLite (no necesitas PostgreSQL instalado)
+    # Si estás en local o no hay variable, usa SQLite (para pruebas)
     database_url = 'sqlite:///asistentes.db'
 else:
-    # Render usa 'postgres://', pero SQLAlchemy requiere 'postgresql://'
+    # Render usa 'postgres://' pero SQLAlchemy requiere 'postgresql://'
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
@@ -30,14 +29,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # =====================================================
-# Modelo de datos
+# MODELO DE DATOS
 # =====================================================
 class Asistente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(200), nullable=False)
     email = db.Column(db.String(200), nullable=False)
     conferencia_id = db.Column(db.Integer, nullable=False)
-    fecha = db.Column(db.String(50))  # fecha_mostrar
+    fecha = db.Column(db.String(50))
     titulo = db.Column(db.String(500))
     hora_inicio = db.Column(db.String(50))
     entrada = db.Column(db.String(50), default='')
@@ -46,6 +45,7 @@ class Asistente(db.Model):
 
     def to_dict(self):
         return {
+            'id': self.id,
             'nombre': self.nombre,
             'email': self.email,
             'conferencia_id': self.conferencia_id,
@@ -57,12 +57,12 @@ class Asistente(db.Model):
             'salida_activada': self.salida_activada
         }
 
-# Crear tablas (solo una vez)
+# Crear tablas (solo la primera vez que se ejecuta)
 with app.app_context():
     db.create_all()
 
 # =====================================================
-# CONFERENCIAS (igual que antes)
+# CONFERENCIAS (datos fijos)
 # =====================================================
 CONFERENCIAS = [
     {'id': 1, 'fecha': '2026-05-18', 'fecha_mostrar': '18 de mayo', 'hora': '12:00', 'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'},
@@ -74,25 +74,88 @@ CONFERENCIAS = [
 ]
 
 # =====================================================
-# Funciones auxiliares (adaptadas a BD)
+# FUNCIONES AUXILIARES
 # =====================================================
 def obtener_asistente(email, conferencia_id):
     return Asistente.query.filter_by(email=email, conferencia_id=conferencia_id).first()
 
 # =====================================================
-# Generación de constancias (igual)
+# GENERACIÓN DE CONSTANCIAS (con fondo o simple)
 # =====================================================
-# (Aquí van las mismas funciones generar_constancia_con_fondo y generar_constancia_simple)
-# Para no alargar, copia las que ya tienes desde la versión anterior.
-# Voy a ponerlas más abajo en el código completo.
+def generar_constancia_con_fondo(fila):
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.colors import HexColor
+        from PyPDF2 import PdfReader, PdfWriter
+    except ImportError:
+        return generar_constancia_simple(fila)
+    
+    fondo_path = "fondo_constancia.pdf"
+    if not os.path.exists(fondo_path):
+        return generar_constancia_simple(fila)
+    
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+    can.setFont("Helvetica-Bold", 28)
+    can.setFillColor(HexColor('#8B0000'))
+    can.drawCentredString(306, 380, fila['nombre'])
+    can.setFont("Helvetica-Bold", 12)
+    can.setFillColor(HexColor('#000000'))
+    titulo = fila['titulo']
+    if len(titulo) > 65:
+        can.drawCentredString(306, 290, titulo[:65])
+        can.drawCentredString(306, 272, titulo[65:])
+    else:
+        can.drawCentredString(306, 290, titulo)
+    can.setFont("Helvetica", 11)
+    can.setFillColor(HexColor('#333333'))
+    can.drawCentredString(306, 240, f"Fecha: {fila['fecha']}")
+    can.save()
+    reader = PdfReader(fondo_path)
+    writer = PdfWriter()
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    page = reader.pages[0]
+    page.merge_page(overlay.pages[0])
+    writer.add_page(page)
+    output = BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
+def generar_constancia_simple(fila):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 20)
+    pdf.cell(0, 20, "CONSTANCIA DE PARTICIPACIÓN", ln=True, align='C')
+    pdf.ln(20)
+    pdf.set_font("Arial", '', 14)
+    pdf.cell(0, 10, "Se otorga a:", ln=True, align='C')
+    pdf.set_font("Arial", 'B', 18)
+    pdf.cell(0, 15, fila['nombre'], ln=True, align='C')
+    pdf.set_font("Arial", '', 14)
+    pdf.cell(0, 10, "Por su participación en la conferencia:", ln=True, align='C')
+    pdf.set_font("Arial", 'B', 12)
+    pdf.multi_cell(0, 8, fila['titulo'], align='C')
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 10, f"Fecha: {fila['fecha']}", ln=True, align='C')
+    pdf.ln(15)
+    pdf.cell(0, 10, "Firma", ln=True, align='R')
+    temp_pdf = "temp_constancia.pdf"
+    pdf.output(temp_pdf)
+    with open(temp_pdf, 'rb') as f:
+        pdf_data = f.read()
+    os.remove(temp_pdf)
+    return BytesIO(pdf_data)
 
 # =====================================================
-# RUTAS
+# RUTAS DE LA APLICACIÓN
 # =====================================================
 
 @app.route('/')
 def index():
-    # Usamos la URL pública configurable (para local o producción)
+    # La URL base para los QR: puede venir de variable de entorno o por defecto
     base_url = os.environ.get('PUBLIC_URL', 'http://127.0.0.1:5000')
     qr_codes = []
     for conf in CONFERENCIAS:
@@ -167,7 +230,9 @@ def registro_dia(conferencia_id):
 
     return render_template('registro.html', conferencia=conferencia)
 
-# Rutas de administración (protegidas)
+# =====================================================
+# AUTENTICACIÓN PARA ADMIN
+# =====================================================
 def check_auth(username, password):
     return username == 'admin' and password == 'admin123'
 
@@ -183,32 +248,34 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+# =====================================================
+# RUTAS DE ADMINISTRADOR
+# =====================================================
 @app.route('/admin')
 @requires_auth
 def admin():
     pendientes = Asistente.query.filter(Asistente.entrada != '', Asistente.salida == '').all()
     registros = [a.to_dict() for a in pendientes]
-    # Para la vista, necesitamos también las conferencias completas
     return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
 
 @app.route('/admin/activar/<int:id>')
 @requires_auth
 def activar_salida(id):
-    asistente = Asistente.query.get(id)
-    if asistente and not asistente.salida:
-        asistente.salida_activada = True
+    a = Asistente.query.get(id)
+    if a and not a.salida:
+        a.salida_activada = True
         db.session.commit()
-        flash(f'✅ Salida ACTIVADA para {asistente.nombre}', 'success')
+        flash(f'✅ Salida ACTIVADA para {a.nombre}', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/desactivar/<int:id>')
 @requires_auth
 def desactivar_salida(id):
-    asistente = Asistente.query.get(id)
-    if asistente and not asistente.salida:
-        asistente.salida_activada = False
+    a = Asistente.query.get(id)
+    if a and not a.salida:
+        a.salida_activada = False
         db.session.commit()
-        flash(f'🔒 Salida DESACTIVADA para {asistente.nombre}', 'warning')
+        flash(f'🔒 Salida DESACTIVADA para {a.nombre}', 'warning')
     return redirect(url_for('admin'))
 
 @app.route('/admin/activar_todos/<int:conferencia_id>')
@@ -238,10 +305,55 @@ def ver_registros():
     registros = [a.to_dict() for a in todos]
     return render_template('ver_registros.html', registros=registros)
 
-# Rutas de constancia (igual que antes, requieren las funciones de generación de PDF)
-# ... copiar las funciones generar_constancia_con_fondo y generar_constancia_simple desde tu código original.
-# También las rutas /constancia, /constancia-qr, /descargar-constancia-qr.
+# =====================================================
+# RUTAS DE CONSTANCIAS
+# =====================================================
+@app.route('/constancia', methods=['GET', 'POST'])
+def constancia():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        conferencia_id = int(request.form.get('conferencia_id'))
+        asistente = obtener_asistente(email, conferencia_id)
+        if not asistente:
+            flash('No se encontró ningún registro con ese email.', 'danger')
+            return redirect(url_for('constancia'))
+        if not asistente.entrada or not asistente.salida:
+            flash('❌ No puedes generar constancia porque faltan entrada o salida.', 'danger')
+            return redirect(url_for('constancia'))
+        pdf_file = generar_constancia_con_fondo(asistente.to_dict())
+        nombre_limpio = asistente.nombre.replace(' ', '_').replace('/', '_')
+        return send_file(pdf_file, as_attachment=True,
+                         download_name=f"constancia_{nombre_limpio}.pdf",
+                         mimetype='application/pdf')
+    return render_template('constancia.html', conferencias=CONFERENCIAS)
 
+@app.route('/constancia-qr', methods=['GET'])
+def constancia_qr():
+    return render_template('constancia_qr.html', conferencias=CONFERENCIAS)
+
+@app.route('/descargar-constancia-qr', methods=['POST'])
+def descargar_constancia_qr():
+    email = request.form.get('email')
+    conferencia_id = int(request.form.get('conferencia_id'))
+    asistente = obtener_asistente(email, conferencia_id)
+    if not asistente:
+        flash('No se encontró ningún registro con ese correo para esa conferencia.', 'error')
+        return redirect(url_for('constancia_qr'))
+    if not asistente.entrada or not asistente.salida:
+        flash('❌ Aún no puedes generar la constancia. Debes tener entrada y salida registradas.', 'error')
+        return redirect(url_for('constancia_qr'))
+    try:
+        pdf_file = generar_constancia_con_fondo(asistente.to_dict())
+    except:
+        pdf_file = generar_constancia_simple(asistente.to_dict())
+    nombre_limpio = asistente.nombre.replace(' ', '_').replace('/', '_')
+    return send_file(pdf_file, as_attachment=True,
+                     download_name=f"constancia_{nombre_limpio}.pdf",
+                     mimetype='application/pdf')
+
+# =====================================================
+# EJECUCIÓN (para local o producción)
+# =====================================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
