@@ -1,0 +1,7 @@
+streamlit
+pandas
+openpyxl
+fpdf2
+flask
+flask-sqlalchemy
+qrcode
