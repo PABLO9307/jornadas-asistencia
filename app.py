@@ -185,8 +185,9 @@ def registro_dia(conferencia_id):
         nombre = request.form.get('nombre')
         email = request.form.get('email')
         tipo = request.form.get('tipo')
-        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
+        import pytz
+        mexico_tz = pytz.timezone('America/Mexico_City')
+        ahora = datetime.now(mexico_tz).strftime("%Y-%m-%d %H:%M:%S")
         asistente = obtener_asistente(email, conferencia_id)
 
         if tipo == 'entrada':
@@ -197,7 +198,8 @@ def registro_dia(conferencia_id):
                 nuevo = Asistente(
                     nombre=nombre,
                     email=email,
-                    conferencia_id=conferencia_id,
+        
+                conferencia_id=conferencia_id,
                     fecha=conferencia['fecha_mostrar'],
                     titulo=conferencia['titulo'],
                     hora_inicio=ahora,
