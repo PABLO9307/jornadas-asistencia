@@ -8,6 +8,7 @@ import base64
 from fpdf import FPDF
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
+import csv
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
@@ -360,32 +361,47 @@ def descargar_constancia_qr():
                      mimetype='application/pdf')
 
 # =====================================================
-# EXPORTAR REGISTROS A EXCEL (SOLO ADMINISTRADORES)
+# EXPORTAR REGISTROS A CSV (SIN PANDAS, SOLO BIBLIOTECAS NATIVAS)
 # =====================================================
 @app.route('/exportar/registros')
 @requires_auth
 def exportar_registros():
-    import pandas as pd
-    from io import BytesIO
-    
     # Obtener todos los registros de la base de datos
     todos = Asistente.query.all()
-    registros = [a.to_dict() for a in todos]
     
-    # Crear DataFrame de pandas
-    df = pd.DataFrame(registros)
-    
-    # Crear archivo Excel en memoria
+    # Crear un buffer en memoria para el CSV
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Asistentes', index=False)
+    # Usar utf-8 con BOM para que Excel lo abra correctamente
+    output.write('\ufeff'.encode('utf-8'))
+    
+    # Crear el writer de CSV
+    import csv
+    writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    
+    # Escribir cabeceras
+    writer.writerow(['ID', 'Nombre', 'Email', 'Conferencia ID', 'Fecha', 'Título', 'Hora Inicio', 'Entrada', 'Salida', 'Salida Activada'])
+    
+    # Escribir cada registro
+    for a in todos:
+        writer.writerow([
+            a.id,
+            a.nombre,
+            a.email,
+            a.conferencia_id,
+            a.fecha,
+            a.titulo,
+            a.hora_inicio,
+            a.entrada,
+            a.salida,
+            'Sí' if a.salida_activada else 'No'
+        ])
     
     output.seek(0)
     return send_file(
         output,
         as_attachment=True,
-        download_name='registros_asistencia.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        download_name=f'registros_asistencia_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
+        mimetype='text/csv'
     )
 
 if __name__ == '__main__':
