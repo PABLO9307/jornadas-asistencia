@@ -3,12 +3,12 @@ from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, make_response
 from functools import wraps
 import qrcode
-from io import BytesIO
+from io import BytesIO, StringIO
 import base64
+import csv
 from fpdf import FPDF
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
-import csv
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
@@ -20,7 +20,6 @@ database_url = os.environ.get('DATABASE_URL')
 if not database_url:
     database_url = 'sqlite:///asistentes.db'
 else:
-    # Render usa 'postgres://' pero SQLAlchemy requiere 'postgresql://'
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
@@ -29,7 +28,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # =====================================================
-# MODELO DE DATOS (ASEGURA QUE TODAS LAS COLUMNAS EXISTEN)
+# MODELO DE DATOS
 # =====================================================
 class Asistente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -57,14 +56,11 @@ class Asistente(db.Model):
             'salida_activada': self.salida_activada
         }
 
-# Crear todas las tablas (y columnas) si no existen
 with app.app_context():
     db.create_all()
-    # Verificar que la columna salida_activada exista (para bases antiguas)
     try:
         db.session.execute('SELECT salida_activada FROM asistente LIMIT 1')
     except Exception:
-        # Si no existe, agregarla manualmente (solo para SQLite/Postgres)
         try:
             db.session.execute('ALTER TABLE asistente ADD COLUMN salida_activada BOOLEAN DEFAULT FALSE')
             db.session.commit()
@@ -87,7 +83,7 @@ def obtener_asistente(email, conferencia_id):
     return Asistente.query.filter_by(email=email, conferencia_id=conferencia_id).first()
 
 # =====================================================
-# GENERACIÓN DE CONSTANCIAS (con fondo o simple)
+# GENERACIÓN DE CONSTANCIAS
 # =====================================================
 def generar_constancia_con_fondo(fila):
     try:
@@ -157,7 +153,7 @@ def generar_constancia_simple(fila):
     return BytesIO(pdf_data)
 
 # =====================================================
-# RUTAS
+# RUTAS PRINCIPALES
 # =====================================================
 @app.route('/')
 def index():
@@ -254,7 +250,7 @@ def requires_auth(f):
     return decorated
 
 # =====================================================
-# PANEL ADMIN (CON CAPTURA DE ERRORES)
+# PANEL ADMIN
 # =====================================================
 @app.route('/admin')
 @requires_auth
@@ -264,8 +260,7 @@ def admin():
         registros = [a.to_dict() for a in pendientes]
         return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
     except Exception as e:
-        # Muestra el error en la página para depuración
-        return f"<h1>Error en /admin</h1><pre>{str(e)}</pre><p>Verifica que la base de datos tenga la columna 'salida_activada'.</p>", 500
+        return f"<h1>Error en /admin</h1><pre>{str(e)}</pre>", 500
 
 @app.route('/admin/activar/<int:id>')
 @requires_auth
@@ -361,55 +356,49 @@ def descargar_constancia_qr():
                      mimetype='application/pdf')
 
 # =====================================================
-# EXPORTAR REGISTROS A CSV (SIN PANDAS, SOLO BIBLIOTECAS NATIVAS)
+# EXPORTAR REGISTROS A CSV
 # =====================================================
 @app.route('/exportar/registros')
 @requires_auth
 def exportar_registros():
-    import csv
-    from io import BytesIO, StringIO
-    from datetime import datetime
-    
-    # Obtener todos los registros de la base de datos
-    todos = Asistente.query.all()
-    
-    # Crear un buffer en memoria para el CSV
-    output = BytesIO()
-    # Usar utf-8 con BOM para que Excel lo abra correctamente
-    output.write('\ufeff'.encode('utf-8'))
-    
-    # Crear el writer de CSV (trabajamos con texto, luego convertimos a bytes)
-    text_output = StringIO()
-    writer = csv.writer(text_output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-    
-    # Escribir cabeceras
-    writer.writerow(['ID', 'Nombre', 'Email', 'Conferencia ID', 'Fecha', 'Título', 'Hora Inicio', 'Entrada', 'Salida', 'Salida Activada'])
-    
-    # Escribir cada registro
-    for a in todos:
-        writer.writerow([
-            a.id,
-            a.nombre,
-            a.email,
-            a.conferencia_id,
-            a.fecha,
-            a.titulo,
-            a.hora_inicio,
-            a.entrada,
-            a.salida,
-            'Sí' if a.salida_activada else 'No'
-        ])
-    
-    # Agregar el contenido CSV al buffer de bytes
-    output.write(text_output.getvalue().encode('utf-8-sig'))
-    output.seek(0)
-    
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=f'registros_asistencia_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
-        mimetype='text/csv'
-    )
+    try:
+        todos = Asistente.query.all()
+        output_text = StringIO()
+        writer = csv.writer(output_text, delimiter=',')
+        
+        # Encabezados
+        writer.writerow(['ID', 'Nombre', 'Email', 'Conferencia ID', 'Fecha', 'Titulo', 'Hora Inicio', 'Entrada', 'Salida', 'Salida Activada'])
+        
+        # Datos
+        for a in todos:
+            writer.writerow([
+                a.id,
+                a.nombre,
+                a.email,
+                a.conferencia_id,
+                a.fecha,
+                a.titulo,
+                a.hora_inicio,
+                a.entrada,
+                a.salida,
+                'Si' if a.salida_activada else 'No'
+            ])
+        
+        output_bytes = BytesIO()
+        output_bytes.write('\ufeff'.encode('utf-8'))  # BOM para Excel
+        output_bytes.write(output_text.getvalue().encode('utf-8'))
+        output_bytes.seek(0)
+        
+        return send_file(
+            output_bytes,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'registros_asistencia_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        )
+    except Exception as e:
+        import traceback
+        return f"<h1>Error en exportación</h1><pre>{traceback.format_exc()}</pre>", 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
