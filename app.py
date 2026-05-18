@@ -7,6 +7,7 @@ from io import BytesIO
 import base64
 from fpdf import FPDF
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import SQLAlchemyError
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
@@ -18,6 +19,7 @@ database_url = os.environ.get('DATABASE_URL')
 if not database_url:
     database_url = 'sqlite:///asistentes.db'
 else:
+    # Render usa 'postgres://' pero SQLAlchemy requiere 'postgresql://'
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
@@ -26,7 +28,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # =====================================================
-# MODELO DE DATOS
+# MODELO DE DATOS (ASEGURA QUE TODAS LAS COLUMNAS EXISTEN)
 # =====================================================
 class Asistente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -54,11 +56,22 @@ class Asistente(db.Model):
             'salida_activada': self.salida_activada
         }
 
+# Crear todas las tablas (y columnas) si no existen
 with app.app_context():
     db.create_all()
+    # Verificar que la columna salida_activada exista (para bases antiguas)
+    try:
+        db.session.execute('SELECT salida_activada FROM asistente LIMIT 1')
+    except Exception:
+        # Si no existe, agregarla manualmente (solo para SQLite/Postgres)
+        try:
+            db.session.execute('ALTER TABLE asistente ADD COLUMN salida_activada BOOLEAN DEFAULT FALSE')
+            db.session.commit()
+        except:
+            pass
 
 # =====================================================
-# CONFERENCIAS
+# DATOS DE LAS CONFERENCIAS
 # =====================================================
 CONFERENCIAS = [
     {'id': 1, 'fecha': '2026-05-18', 'fecha_mostrar': '18 de mayo', 'hora': '12:00', 'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'},
@@ -73,7 +86,7 @@ def obtener_asistente(email, conferencia_id):
     return Asistente.query.filter_by(email=email, conferencia_id=conferencia_id).first()
 
 # =====================================================
-# GENERACIÓN DE CONSTANCIAS
+# GENERACIÓN DE CONSTANCIAS (con fondo o simple)
 # =====================================================
 def generar_constancia_con_fondo(fila):
     try:
@@ -221,6 +234,9 @@ def registro_dia(conferencia_id):
 
     return render_template('registro.html', conferencia=conferencia)
 
+# =====================================================
+# AUTENTICACIÓN ADMIN
+# =====================================================
 def check_auth(username, password):
     return username == 'admin' and password == 'admin123'
 
@@ -236,12 +252,19 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+# =====================================================
+# PANEL ADMIN (CON CAPTURA DE ERRORES)
+# =====================================================
 @app.route('/admin')
 @requires_auth
 def admin():
-    pendientes = Asistente.query.filter(Asistente.entrada != '', Asistente.salida == '').all()
-    registros = [a.to_dict() for a in pendientes]
-    return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
+    try:
+        pendientes = Asistente.query.filter(Asistente.entrada != '', Asistente.salida == '').all()
+        registros = [a.to_dict() for a in pendientes]
+        return render_template('admin.html', registros=registros, conferencias=CONFERENCIAS)
+    except Exception as e:
+        # Muestra el error en la página para depuración
+        return f"<h1>Error en /admin</h1><pre>{str(e)}</pre><p>Verifica que la base de datos tenga la columna 'salida_activada'.</p>", 500
 
 @app.route('/admin/activar/<int:id>')
 @requires_auth
@@ -290,6 +313,9 @@ def ver_registros():
     registros = [a.to_dict() for a in todos]
     return render_template('ver_registros.html', registros=registros)
 
+# =====================================================
+# CONSTANCIAS
+# =====================================================
 @app.route('/constancia', methods=['GET', 'POST'])
 def constancia():
     if request.method == 'POST':
@@ -335,5 +361,4 @@ def descargar_constancia_qr():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
     app.run(debug=False, host='0.0.0.0', port=port)
