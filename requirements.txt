@@ -1,10 +1,9 @@
-streamlit
+flask
 pandas
 openpyxl
-fpdf2
-flask
-flask-sqlalchemy
 qrcode
 pillow
+fpdf
 reportlab
-guicorn
+PyPDF2
+gunicorn
