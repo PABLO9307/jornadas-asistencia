@@ -10,11 +10,15 @@ from fpdf import FPDF
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_para_mensajes_flash'
+
+# Forzar esquema HTTPS para las URLs generadas
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 EXCEL_FILE = 'asistentes.xlsx'
 
-# Autenticación
+# =====================================================
+# Autenticación básica para rutas de administrador
+# =====================================================
 def check_auth(username, password):
     return username == 'admin' and password == 'admin123'
 
@@ -30,17 +34,55 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+# =====================================================
 # CONFERENCIAS
+# =====================================================
 CONFERENCIAS = [
-    {'id': 1, 'fecha': '2026-05-18', 'fecha_mostrar': '18 de mayo', 'hora': '12:00', 'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'},
-    {'id': 2, 'fecha': '2026-05-19', 'fecha_mostrar': '19 de mayo', 'hora': '15:00', 'titulo': 'Industria 4.0 y 5.0'},
-    {'id': 3, 'fecha': '2026-05-19', 'fecha_mostrar': '19 de mayo', 'hora': '16:00', 'titulo': 'Síntesis de nanopartículas de Óxidos metálicos nanoestructurados y su aplicación fotocatalítica en el tratamiento de agua'},
-    {'id': 4, 'fecha': '2026-05-20', 'fecha_mostrar': '20 de mayo', 'hora': '15:00', 'titulo': 'Síntesis verde: una ruta sostenible para la obtención de nanomateriales'},
-    {'id': 5, 'fecha': '2026-05-20', 'fecha_mostrar': '20 de mayo', 'hora': '16:00', 'titulo': 'La cadena de valor de los semiconductores en el IPN ¿Cuál es la oportunidad real?'},
-    {'id': 6, 'fecha': '2026-05-21', 'fecha_mostrar': '21 de mayo', 'hora': '11:00', 'titulo': 'Polímeros controlados e Hidrogeles'}
+    {
+        'id': 1,
+        'fecha': '2026-05-18',
+        'fecha_mostrar': '18 de mayo',
+        'hora': '12:00',
+        'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'
+    },
+    {
+        'id': 2,
+        'fecha': '2026-05-19',
+        'fecha_mostrar': '19 de mayo',
+        'hora': '15:00',
+        'titulo': 'Industria 4.0 y 5.0'
+    },
+    {
+        'id': 3,
+        'fecha': '2026-05-19',
+        'fecha_mostrar': '19 de mayo',
+        'hora': '16:00',
+        'titulo': 'Síntesis de nanopartículas de Óxidos metálicos nanoestructurados y su aplicación fotocatalítica en el tratamiento de agua'
+    },
+    {
+        'id': 4,
+        'fecha': '2026-05-20',
+        'fecha_mostrar': '20 de mayo',
+        'hora': '15:00',
+        'titulo': 'Síntesis verde: una ruta sostenible para la obtención de nanomateriales'
+    },
+    {
+        'id': 5,
+        'fecha': '2026-05-20',
+        'fecha_mostrar': '20 de mayo',
+        'hora': '16:00',
+        'titulo': 'La cadena de valor de los semiconductores en el IPN ¿Cuál es la oportunidad real?'
+    },
+    {
+        'id': 6,
+        'fecha': '2026-05-21',
+        'fecha_mostrar': '21 de mayo',
+        'hora': '11:00',
+        'titulo': 'Polímeros controlados e Hidrogeles'
+    }
 ]
 
-# Excel
+# Inicializar archivo Excel
 def init_excel():
     if not os.path.exists(EXCEL_FILE):
         df = pd.DataFrame(columns=['nombre', 'email', 'conferencia_id', 'fecha', 'titulo', 'hora_inicio', 'entrada', 'salida', 'salida_activada', 'entrada_activada'])
@@ -64,7 +106,6 @@ def leer_excel():
         df['entrada_activada'] = True
     else:
         df['entrada_activada'] = df['entrada_activada'].fillna(True)
-    guardar_excel(df)
     return df
 
 def guardar_excel(df):
@@ -77,8 +118,12 @@ def obtener_fila_asistente(df, email, conferencia_id):
         return indices[0], df.loc[indices[0]]
     return None, None
 
-# Constancias
+# =====================================================
+# GENERACIÓN DE CONSTANCIAS CON FONDO (SIN HORAS)
+# =====================================================
+
 def generar_constancia_con_fondo(fila):
+    """Constancia con fondo personalizado - SIN horas"""
     try:
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
@@ -86,14 +131,19 @@ def generar_constancia_con_fondo(fila):
         from PyPDF2 import PdfReader, PdfWriter
     except ImportError:
         return generar_constancia_simple(fila)
+    
     fondo_path = "fondo_constancia.pdf"
     if not os.path.exists(fondo_path):
+        print("No se encontró fondo_constancia.pdf, usando versión simple")
         return generar_constancia_simple(fila)
+    
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
+    
     can.setFont("Helvetica-Bold", 28)
     can.setFillColor(HexColor('#8B0000'))
     can.drawCentredString(306, 380, fila['nombre'])
+    
     can.setFont("Helvetica-Bold", 12)
     can.setFillColor(HexColor('#000000'))
     titulo = fila['titulo']
@@ -102,10 +152,12 @@ def generar_constancia_con_fondo(fila):
         can.drawCentredString(306, 272, titulo[65:])
     else:
         can.drawCentredString(306, 290, titulo)
+    
     can.setFont("Helvetica", 11)
     can.setFillColor(HexColor('#333333'))
     can.drawCentredString(306, 240, f"Fecha: {fila['fecha']}")
     can.save()
+    
     reader = PdfReader(fondo_path)
     writer = PdfWriter()
     packet.seek(0)
@@ -113,12 +165,14 @@ def generar_constancia_con_fondo(fila):
     page = reader.pages[0]
     page.merge_page(overlay.pages[0])
     writer.add_page(page)
+    
     output = BytesIO()
     writer.write(output)
     output.seek(0)
     return output
 
 def generar_constancia_simple(fila):
+    """Constancia simple SIN horas (respaldo)"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 20)
@@ -136,6 +190,7 @@ def generar_constancia_simple(fila):
     pdf.cell(0, 10, f"Fecha: {fila['fecha']}", ln=True, align='C')
     pdf.ln(15)
     pdf.cell(0, 10, "Firma", ln=True, align='R')
+    
     temp_pdf = "temp_constancia.pdf"
     pdf.output(temp_pdf)
     with open(temp_pdf, 'rb') as f:
@@ -143,12 +198,18 @@ def generar_constancia_simple(fila):
     os.remove(temp_pdf)
     return BytesIO(pdf_data)
 
-# Rutas principales
+# =====================================================
+# RUTAS DE LA APLICACIÓN
+# =====================================================
+
 @app.route('/')
 def index():
+    # Usar la URL pública de Render (variable de entorno) o la de la petición
     base_url = os.environ.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
+    # Forzar HTTPS para evitar problemas de contenido mixto
     if base_url.startswith('http://'):
         base_url = base_url.replace('http://', 'https://')
+    
     qr_codes = []
     for conf in CONFERENCIAS:
         url = f'{base_url}/registro/{conf["id"]}'
@@ -171,17 +232,21 @@ def registro_dia(conferencia_id):
     conferencia = next((c for c in CONFERENCIAS if c['id'] == conferencia_id), None)
     if conferencia is None:
         return "Conferencia no encontrada", 404
+
     if request.method == 'POST':
         nombre = request.form.get('nombre')
         email = request.form.get('email')
         tipo = request.form.get('tipo')
         ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         df = leer_excel()
         indice, fila = obtener_fila_asistente(df, email, conferencia_id)
+
         if tipo == 'entrada':
             if indice is not None and not df.at[indice, 'entrada_activada']:
                 flash('🔒 La entrada aún no está habilitada. Espera a que el organizador la active.', 'warning')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
+            
             if fila is not None and fila['entrada'] != '':
                 flash('❌ Ya registraste entrada para esta conferencia.', 'danger')
                 return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
@@ -204,6 +269,7 @@ def registro_dia(conferencia_id):
                 df.at[indice, 'hora_inicio'] = ahora
             guardar_excel(df)
             flash(f'✅ ENTRADA registrada para {nombre}', 'success')
+
         elif tipo == 'salida':
             if fila is None or fila['entrada'] == '':
                 flash('❌ No puedes registrar salida sin haber registrado entrada primero.', 'danger')
@@ -217,10 +283,14 @@ def registro_dia(conferencia_id):
             df.at[indice, 'salida'] = ahora
             guardar_excel(df)
             flash(f'✅ SALIDA registrada para {nombre}', 'success')
+
         return redirect(url_for('registro_dia', conferencia_id=conferencia_id))
+
     return render_template('registro.html', conferencia=conferencia)
 
-# Admin
+# =====================================================
+# Rutas protegidas con autenticación (admin)
+# =====================================================
 @app.route('/admin')
 @requires_auth
 def admin():
@@ -256,7 +326,7 @@ def activar_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] != '') & (df['salida'] == '')
     df.loc[mascara, 'salida_activada'] = True
     guardar_excel(df)
-    flash('✅ Salida ACTIVADA para TODOS los asistentes (con entrada registrada)', 'success')
+    flash('✅ Salida ACTIVADA para TODOS los asistentes', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/desactivar_todos/<int:conferencia_id>')
@@ -266,10 +336,9 @@ def desactivar_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] != '') & (df['salida'] == '')
     df.loc[mascara, 'salida_activada'] = False
     guardar_excel(df)
-    flash('🔒 Salida DESACTIVADA para TODOS los asistentes (con entrada registrada)', 'warning')
+    flash('🔒 Salida DESACTIVADA para TODOS los asistentes', 'warning')
     return redirect(url_for('admin'))
 
-# RUTAS PARA CONTROL DE ENTRADA (agregadas)
 @app.route('/admin/activar_entrada_todos/<int:conferencia_id>')
 @requires_auth
 def activar_entrada_todos(conferencia_id):
@@ -277,7 +346,7 @@ def activar_entrada_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = True
     guardar_excel(df)
-    flash('✅ ENTRADA ACTIVADA para todos los asistentes (nuevos) de esta conferencia', 'success')
+    flash('✅ ENTRADA ACTIVADA para TODOS los asistentes', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/admin/desactivar_entrada_todos/<int:conferencia_id>')
@@ -287,7 +356,7 @@ def desactivar_entrada_todos(conferencia_id):
     mascara = (df['conferencia_id'] == conferencia_id) & (df['entrada'] == '')
     df.loc[mascara, 'entrada_activada'] = False
     guardar_excel(df)
-    flash('🔒 ENTRADA DESACTIVADA para todos los asistentes (nuevos) de esta conferencia', 'warning')
+    flash('🔒 ENTRADA DESACTIVADA para TODOS los asistentes', 'warning')
     return redirect(url_for('admin'))
 
 @app.route('/ver_registros')
