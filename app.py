@@ -14,13 +14,10 @@ app.secret_key = 'clave_secreta_para_mensajes_flash'
 # =====================================================
 # CONFIGURACIÓN DE BASE DE DATOS
 # =====================================================
-# Render inyecta la variable DATABASE_URL automáticamente si vinculaste la BD
 database_url = os.environ.get('DATABASE_URL')
 if not database_url:
-    # Si estás en local o no hay variable, usa SQLite (para pruebas)
     database_url = 'sqlite:///asistentes.db'
 else:
-    # Render usa 'postgres://' pero SQLAlchemy requiere 'postgresql://'
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
@@ -57,12 +54,11 @@ class Asistente(db.Model):
             'salida_activada': self.salida_activada
         }
 
-# Crear tablas (solo la primera vez que se ejecuta)
 with app.app_context():
     db.create_all()
 
 # =====================================================
-# CONFERENCIAS (datos fijos)
+# CONFERENCIAS
 # =====================================================
 CONFERENCIAS = [
     {'id': 1, 'fecha': '2026-05-18', 'fecha_mostrar': '18 de mayo', 'hora': '12:00', 'titulo': 'Aprovechamiento energético de matrices fisiológicas mediante plataformas microfluídicas electroquímicas'},
@@ -73,14 +69,11 @@ CONFERENCIAS = [
     {'id': 6, 'fecha': '2026-05-21', 'fecha_mostrar': '21 de mayo', 'hora': '11:00', 'titulo': 'Polímeros controlados e Hidrogeles'}
 ]
 
-# =====================================================
-# FUNCIONES AUXILIARES
-# =====================================================
 def obtener_asistente(email, conferencia_id):
     return Asistente.query.filter_by(email=email, conferencia_id=conferencia_id).first()
 
 # =====================================================
-# GENERACIÓN DE CONSTANCIAS (con fondo o simple)
+# GENERACIÓN DE CONSTANCIAS
 # =====================================================
 def generar_constancia_con_fondo(fila):
     try:
@@ -150,12 +143,10 @@ def generar_constancia_simple(fila):
     return BytesIO(pdf_data)
 
 # =====================================================
-# RUTAS DE LA APLICACIÓN
+# RUTAS
 # =====================================================
-
 @app.route('/')
 def index():
-    # La URL base para los QR: puede venir de variable de entorno o por defecto
     base_url = os.environ.get('PUBLIC_URL', 'http://127.0.0.1:5000')
     qr_codes = []
     for conf in CONFERENCIAS:
@@ -230,9 +221,6 @@ def registro_dia(conferencia_id):
 
     return render_template('registro.html', conferencia=conferencia)
 
-# =====================================================
-# AUTENTICACIÓN PARA ADMIN
-# =====================================================
 def check_auth(username, password):
     return username == 'admin' and password == 'admin123'
 
@@ -248,9 +236,6 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-# =====================================================
-# RUTAS DE ADMINISTRADOR
-# =====================================================
 @app.route('/admin')
 @requires_auth
 def admin():
@@ -305,9 +290,6 @@ def ver_registros():
     registros = [a.to_dict() for a in todos]
     return render_template('ver_registros.html', registros=registros)
 
-# =====================================================
-# RUTAS DE CONSTANCIAS
-# =====================================================
 @app.route('/constancia', methods=['GET', 'POST'])
 def constancia():
     if request.method == 'POST':
@@ -351,9 +333,7 @@ def descargar_constancia_qr():
                      download_name=f"constancia_{nombre_limpio}.pdf",
                      mimetype='application/pdf')
 
-# =====================================================
-# EJECUCIÓN (para local o producción)
-# =====================================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
     app.run(debug=False, host='0.0.0.0', port=port)
